@@ -14,6 +14,7 @@ enum class OpenClawCapability(val rawValue: String) {
   Calendar("calendar"),
   Motion("motion"),
   CallLog("callLog"),
+  Vault("vault"),
 }
 
 enum class OpenClawCanvasCommand(val rawValue: String) {

@@ -43,63 +43,9 @@ internal data class MobileColors(
   val chipBorderError: Color,
 )
 
-internal fun lightMobileColors() =
-  MobileColors(
-    surface = Color(0xFFF6F7FA),
-    surfaceStrong = Color(0xFFECEEF3),
-    cardSurface = Color(0xFFFFFFFF),
-    border = Color(0xFFE5E7EC),
-    borderStrong = Color(0xFFD6DAE2),
-    text = Color(0xFF17181C),
-    textSecondary = Color(0xFF5D6472),
-    textTertiary = Color(0xFF99A0AE),
-    accent = Color(0xFF1D5DD8),
-    accentSoft = Color(0xFFECF3FF),
-    accentBorderStrong = Color(0xFF184DAF),
-    success = Color(0xFF2F8C5A),
-    successSoft = Color(0xFFEEF9F3),
-    warning = Color(0xFFC8841A),
-    warningSoft = Color(0xFFFFF8EC),
-    danger = Color(0xFFD04B4B),
-    dangerSoft = Color(0xFFFFF2F2),
-    codeBg = Color(0xFF15171B),
-    codeText = Color(0xFFE8EAEE),
-    codeBorder = Color(0xFF2B2E35),
-    codeAccent = Color(0xFF3FC97A),
-    chipBorderConnected = Color(0xFFCFEBD8),
-    chipBorderConnecting = Color(0xFFD5E2FA),
-    chipBorderWarning = Color(0xFFEED8B8),
-    chipBorderError = Color(0xFFF3C8C8),
-  )
+internal fun lightMobileColors() = AirDesignTokens.lightColors()
 
-internal fun darkMobileColors() =
-  MobileColors(
-    surface = Color(0xFF1A1C20),
-    surfaceStrong = Color(0xFF24262B),
-    cardSurface = Color(0xFF1E2024),
-    border = Color(0xFF2E3038),
-    borderStrong = Color(0xFF3A3D46),
-    text = Color(0xFFE4E5EA),
-    textSecondary = Color(0xFFA0A6B4),
-    textTertiary = Color(0xFF6B7280),
-    accent = Color(0xFF6EA8FF),
-    accentSoft = Color(0xFF1A2A44),
-    accentBorderStrong = Color(0xFF5B93E8),
-    success = Color(0xFF5FBB85),
-    successSoft = Color(0xFF152E22),
-    warning = Color(0xFFE8A844),
-    warningSoft = Color(0xFF2E2212),
-    danger = Color(0xFFE87070),
-    dangerSoft = Color(0xFF2E1616),
-    codeBg = Color(0xFF111317),
-    codeText = Color(0xFFE8EAEE),
-    codeBorder = Color(0xFF2B2E35),
-    codeAccent = Color(0xFF3FC97A),
-    chipBorderConnected = Color(0xFF1E4A30),
-    chipBorderConnecting = Color(0xFF1E3358),
-    chipBorderWarning = Color(0xFF3E3018),
-    chipBorderError = Color(0xFF3E1E1E),
-  )
+internal fun darkMobileColors() = AirDesignTokens.darkColors()
 
 internal val LocalMobileColors = staticCompositionLocalOf { lightMobileColors() }
 
@@ -153,80 +99,88 @@ internal val mobileBackgroundGradient: Brush
 // Typography tokens (theme-independent)
 // ---------------------------------------------------------------------------
 
-internal val mobileFontFamily =
+internal val mobileHeadingFontFamily =
   FontFamily(
-    Font(resId = R.font.manrope_400_regular, weight = FontWeight.Normal),
-    Font(resId = R.font.manrope_500_medium, weight = FontWeight.Medium),
-    Font(resId = R.font.manrope_600_semibold, weight = FontWeight.SemiBold),
-    Font(resId = R.font.manrope_700_bold, weight = FontWeight.Bold),
+    Font(resId = R.font.poppins_400_regular, weight = FontWeight.Normal),
+    Font(resId = R.font.poppins_500_medium, weight = FontWeight.Medium),
+    Font(resId = R.font.poppins_600_semibold, weight = FontWeight.SemiBold),
   )
+
+internal val mobileBodyFontFamily =
+  FontFamily(
+    Font(resId = R.font.dm_sans_400_regular, weight = FontWeight.Normal),
+    Font(resId = R.font.dm_sans_600_semibold, weight = FontWeight.SemiBold),
+  )
+
+internal val mobileCodeFontFamily =
+  FontFamily.Monospace
+
+internal val mobileFontFamily = mobileBodyFontFamily
 
 internal val mobileDisplay =
   TextStyle(
-    fontFamily = mobileFontFamily,
-    fontWeight = FontWeight.Bold,
-    fontSize = 34.sp,
-    lineHeight = 40.sp,
-    letterSpacing = (-0.8).sp,
+    fontFamily = mobileHeadingFontFamily,
+    fontWeight = FontWeight.Medium,
+    fontSize = 32.sp,
+    lineHeight = 41.sp,
+    letterSpacing = (-1.28).sp,
   )
 
 internal val mobileTitle1 =
   TextStyle(
-    fontFamily = mobileFontFamily,
-    fontWeight = FontWeight.SemiBold,
-    fontSize = 24.sp,
-    lineHeight = 30.sp,
-    letterSpacing = (-0.5).sp,
+    fontFamily = mobileHeadingFontFamily,
+    fontWeight = FontWeight.Medium,
+    fontSize = 28.sp,
+    lineHeight = 36.sp,
+    letterSpacing = (-1.12).sp,
   )
 
 internal val mobileTitle2 =
   TextStyle(
-    fontFamily = mobileFontFamily,
-    fontWeight = FontWeight.SemiBold,
-    fontSize = 20.sp,
-    lineHeight = 26.sp,
-    letterSpacing = (-0.3).sp,
+    fontFamily = mobileHeadingFontFamily,
+    fontWeight = FontWeight.Medium,
+    fontSize = 22.sp,
+    lineHeight = 30.sp,
+    letterSpacing = (-0.88).sp,
   )
 
 internal val mobileHeadline =
   TextStyle(
-    fontFamily = mobileFontFamily,
-    fontWeight = FontWeight.SemiBold,
-    fontSize = 16.sp,
-    lineHeight = 22.sp,
-    letterSpacing = (-0.1).sp,
+    fontFamily = mobileHeadingFontFamily,
+    fontWeight = FontWeight.Medium,
+    fontSize = 19.sp,
+    lineHeight = 27.sp,
+    letterSpacing = (-0.76).sp,
   )
 
 internal val mobileBody =
   TextStyle(
-    fontFamily = mobileFontFamily,
-    fontWeight = FontWeight.Medium,
-    fontSize = 15.sp,
-    lineHeight = 22.sp,
+    fontFamily = mobileBodyFontFamily,
+    fontWeight = FontWeight.Normal,
+    fontSize = 16.sp,
+    lineHeight = 24.sp,
   )
 
 internal val mobileCallout =
   TextStyle(
-    fontFamily = mobileFontFamily,
-    fontWeight = FontWeight.Medium,
+    fontFamily = mobileBodyFontFamily,
+    fontWeight = FontWeight.Normal,
     fontSize = 14.sp,
-    lineHeight = 20.sp,
+    lineHeight = 21.sp,
   )
 
 internal val mobileCaption1 =
   TextStyle(
-    fontFamily = mobileFontFamily,
-    fontWeight = FontWeight.Medium,
+    fontFamily = mobileBodyFontFamily,
+    fontWeight = FontWeight.Normal,
     fontSize = 12.sp,
-    lineHeight = 16.sp,
-    letterSpacing = 0.2.sp,
+    lineHeight = 17.sp,
   )
 
 internal val mobileCaption2 =
   TextStyle(
-    fontFamily = mobileFontFamily,
-    fontWeight = FontWeight.Medium,
-    fontSize = 11.sp,
-    lineHeight = 14.sp,
-    letterSpacing = 0.4.sp,
+    fontFamily = mobileBodyFontFamily,
+    fontWeight = FontWeight.Normal,
+    fontSize = 12.sp,
+    lineHeight = 17.sp,
   )

@@ -88,6 +88,7 @@ object InvokeCommandRegistry {
         availability = NodeCapabilityAvailability.MotionAvailable,
       ),
       NodeCapabilitySpec(name = OpenClawCapability.CallLog.rawValue),
+      NodeCapabilitySpec(name = OpenClawCapability.Vault.rawValue),
     )
 
   val all: List<InvokeCommandSpec> =
@@ -197,6 +198,12 @@ object InvokeCommandRegistry {
       ),
       InvokeCommandSpec(
         name = OpenClawCallLogCommand.Search.rawValue,
+      ),
+      InvokeCommandSpec(
+        name = "vault.decrypt",
+      ),
+      InvokeCommandSpec(
+        name = "vault.sync",
       ),
       InvokeCommandSpec(
         name = "debug.logs",

@@ -15,6 +15,7 @@ import ai.openclaw.app.node.SmsManager
 import ai.openclaw.app.voice.VoiceConversationEntry
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.flatMapLatest
@@ -239,6 +240,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
   fun requestCanvasRehydrate(source: String = "screen_tab") {
     ensureRuntime().requestCanvasRehydrate(source = source, force = true)
+  }
+
+  fun syncVaultToServer(onResult: (Boolean) -> Unit) {
+    viewModelScope.launch {
+      onResult(ensureRuntime().syncVaultToServer())
+    }
   }
 
   fun refreshHomeCanvasOverviewIfConnected() {

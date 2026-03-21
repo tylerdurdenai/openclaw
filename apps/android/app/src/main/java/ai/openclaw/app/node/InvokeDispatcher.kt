@@ -13,6 +13,7 @@ import ai.openclaw.app.protocol.OpenClawMotionCommand
 import ai.openclaw.app.protocol.OpenClawNotificationsCommand
 import ai.openclaw.app.protocol.OpenClawSmsCommand
 import ai.openclaw.app.protocol.OpenClawSystemCommand
+import ai.openclaw.app.vault.VaultDecryptHandler
 
 class InvokeDispatcher(
   private val canvas: CanvasController,
@@ -168,6 +169,9 @@ class InvokeDispatcher(
       // CallLog command
       OpenClawCallLogCommand.Search.rawValue -> callLogHandler.handleCallLogSearch(paramsJson)
 
+      // Vault commands
+      "vault.decrypt", "vault.sync" -> vaultDecryptHandler.handle(command, paramsJson)
+
       // Debug commands
       "debug.ed25519" -> debugHandler.handleEd25519()
       "debug.logs" -> debugHandler.handleLogs()
@@ -286,5 +290,8 @@ class InvokeDispatcher(
           )
         }
     }
+  }
+}
+
   }
 }

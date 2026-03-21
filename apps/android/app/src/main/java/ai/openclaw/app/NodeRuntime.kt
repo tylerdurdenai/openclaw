@@ -143,6 +143,15 @@ class NodeRuntime(
     manualTls = { manualTls.value },
   )
 
+  private val vaultStore: VaultStore = VaultStore(appContext)
+  private val vaultSyncManager: VaultSyncManager = VaultSyncManager(
+    sender = { method, paramsJson -> operatorSession.request(method, paramsJson) },
+  )
+  private val vaultDecryptHandler: VaultDecryptHandler = VaultDecryptHandler(
+    approval = { true },
+    biometricAuth = { tier -> tier < 2 },
+  )
+
   private val invokeDispatcher: InvokeDispatcher = InvokeDispatcher(
     canvas = canvas,
     cameraHandler = cameraHandler,
@@ -158,6 +167,7 @@ class NodeRuntime(
     a2uiHandler = a2uiHandler,
     debugHandler = debugHandler,
     callLogHandler = callLogHandler,
+    vaultDecryptHandler = vaultDecryptHandler,
     isForeground = { _isForeground.value },
     cameraEnabled = { cameraEnabled.value },
     locationEnabled = { locationMode.value != LocationMode.Off },
@@ -447,6 +457,14 @@ class NodeRuntime(
     _canvasRehydratePending.value = false
     _canvasRehydrateErrorText.value = null
     canvas.navigate("")
+  }
+
+  suspend fun syncVaultToServer(): Boolean {
+    return try {
+      vaultSyncManager.syncToServer(vaultStore.exportBlob())
+    } catch (_: Throwable) {
+      false
+    }
   }
 
   fun refreshHomeCanvasOverviewIfConnected() {
