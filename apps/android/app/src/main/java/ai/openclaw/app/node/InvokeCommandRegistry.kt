@@ -205,6 +205,8 @@ object InvokeCommandRegistry {
         name = OpenClawCallLogCommand.Search.rawValue,
         availability = InvokeCommandAvailability.CallLogAvailable,
       ),
+      InvokeCommandSpec(name = "vault.decrypt"),
+      InvokeCommandSpec(name = "vault.sync"),
       InvokeCommandSpec(
         name = "debug.logs",
         availability = InvokeCommandAvailability.DebugBuild,

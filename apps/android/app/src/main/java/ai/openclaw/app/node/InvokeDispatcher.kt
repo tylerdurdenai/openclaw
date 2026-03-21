@@ -35,6 +35,7 @@ class InvokeDispatcher(
   private val sendSmsAvailable: () -> Boolean,
   private val readSmsAvailable: () -> Boolean,
   private val callLogAvailable: () -> Boolean,
+  private val vaultDecryptHandler: ai.openclaw.app.vault.VaultDecryptHandler? = null,
   private val debugBuild: () -> Boolean,
   private val refreshNodeCanvasCapability: suspend () -> Boolean,
   private val onCanvasA2uiPush: () -> Unit,
@@ -168,6 +169,10 @@ class InvokeDispatcher(
 
       // CallLog command
       OpenClawCallLogCommand.Search.rawValue -> callLogHandler.handleCallLogSearch(paramsJson)
+
+      // Vault commands
+      "vault.decrypt", "vault.sync" -> vaultDecryptHandler?.handle(command, paramsJson)
+        ?: GatewaySession.InvokeResult.error(code = "UNAVAILABLE", message = "vault handler not configured")
 
       // Debug commands
       "debug.ed25519" -> debugHandler.handleEd25519()
