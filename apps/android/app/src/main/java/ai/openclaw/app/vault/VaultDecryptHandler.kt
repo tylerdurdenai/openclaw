@@ -17,6 +17,7 @@ data class VaultApprovalContext(
 )
 
 class VaultDecryptHandler(
+  private val vaultStore: VaultStore,
   private val approval: suspend (VaultApprovalContext) -> Boolean = { false },
   private val biometricAuth: suspend (Int) -> Boolean = { tier -> tier < 2 },
 ) {
@@ -25,8 +26,30 @@ class VaultDecryptHandler(
   suspend fun handle(command: String, paramsJson: String?): GatewaySession.InvokeResult {
     return when (command) {
       "vault.decrypt" -> handleDecrypt(paramsJson)
-      "vault.sync" -> GatewaySession.InvokeResult.ok("{\"ok\":true}")
+      "vault.sync" -> handleSync(paramsJson)
       else -> GatewaySession.InvokeResult.error("INVALID_REQUEST", "INVALID_REQUEST: unknown vault command")
+    }
+  }
+
+  private fun handleSync(paramsJson: String?): GatewaySession.InvokeResult {
+    val request =
+      try {
+        if (paramsJson.isNullOrBlank()) null else json.decodeFromString<VaultSyncRequest>(paramsJson)
+      } catch (_: Throwable) {
+        null
+      } ?: return GatewaySession.InvokeResult.error("INVALID_REQUEST", "INVALID_REQUEST: malformed vault sync request")
+
+    val vaultData = try {
+      vaultStore.decodeFromBlob(request.vaultBlob)
+    } catch (err: Throwable) {
+      return GatewaySession.InvokeResult.error("UNAVAILABLE", "VAULT_DECRYPT_FAILED: ${err.message ?: "decrypt failed"}")
+    }
+
+    try {
+      vaultStore.saveLocal(vaultData)
+      return GatewaySession.InvokeResult.ok("{\"ok\":true}")
+    } catch (err: Throwable) {
+      return GatewaySession.InvokeResult.error("UNAVAILABLE", "VAULT_STORE_FAILED: ${err.message ?: "store failed"}")
     }
   }
 
@@ -144,6 +167,11 @@ private data class VaultDecryptResponse(
   @kotlinx.serialization.SerialName("encrypted_value") val encryptedValue: String,
   val field: String,
   val masked: String,
+)
+
+@Serializable
+private data class VaultSyncRequest(
+  @kotlinx.serialization.SerialName("vault_blob") val vaultBlob: String,
 )
 
 private object VaultStoreMasking {

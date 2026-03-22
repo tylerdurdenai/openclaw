@@ -76,6 +76,17 @@ class VaultStore(
     }
   }
 
+  fun decodeFromBlob(base64: String): VaultData {
+    val blobBytes = Base64.getDecoder().decode(base64.trim())
+    val encrypted = decodeBlob(blobBytes)
+    val plain = keystore.decrypt(encrypted)
+    return try {
+      json.decodeFromString<VaultData>(plain.decodeToString())
+    } finally {
+      plain.fill(0)
+    }
+  }
+
   fun maskValue(field: String, value: String): String {
     if (value.isBlank()) return ""
     return when (field) {

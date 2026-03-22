@@ -63,6 +63,18 @@ class NodeRuntime(
   val discoveryStatusText: StateFlow<String> = discovery.statusText
 
   private val identityStore = DeviceIdentityStore(appContext)
+  private val vaultStore: ai.openclaw.app.vault.VaultStore = ai.openclaw.app.vault.VaultStore(appContext)
+  private val vaultDecryptHandler: ai.openclaw.app.vault.VaultDecryptHandler = ai.openclaw.app.vault.VaultDecryptHandler(
+    vaultStore = vaultStore,
+    approval = { ctx ->
+      // TODO: wire up real approval UI (show dialog, wait for user confirm)
+      false
+    },
+    biometricAuth = { tier ->
+      // Tier 0-1: no biometric required; Tier 2+: require biometric
+      tier < 2
+    },
+  )
   private var connectedEndpoint: GatewayEndpoint? = null
 
   private val cameraHandler: CameraHandler = CameraHandler(
@@ -177,6 +189,7 @@ class NodeRuntime(
     onCanvasA2uiReset = { _canvasA2uiHydrated.value = false },
     motionActivityAvailable = { motionHandler.isActivityAvailable() },
     motionPedometerAvailable = { motionHandler.isPedometerAvailable() },
+    vaultDecryptHandler = vaultDecryptHandler,
   )
 
   data class GatewayTrustPrompt(
