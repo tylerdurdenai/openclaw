@@ -32,6 +32,7 @@ class VaultDecryptHandler(
   }
 
   private fun handleSync(paramsJson: String?): GatewaySession.InvokeResult {
+    android.util.Log.d("VaultDebug", "handleSync called with: ${paramsJson?.take(200)}")
     val request =
       try {
         if (paramsJson.isNullOrBlank()) null else json.decodeFromString<VaultSyncRequest>(paramsJson)
@@ -39,16 +40,23 @@ class VaultDecryptHandler(
         null
       } ?: return GatewaySession.InvokeResult.error("INVALID_REQUEST", "INVALID_REQUEST: malformed vault sync request")
 
+    android.util.Log.d("VaultDebug", "vaultBlob length: ${request?.vaultBlob?.length}")
+
     val vaultData = try {
       vaultStore.decodeFromBlob(request.vaultBlob)
     } catch (err: Throwable) {
+      android.util.Log.e("VaultDebug", "decodeFromBlob failed: ${err.message}", err)
       return GatewaySession.InvokeResult.error("UNAVAILABLE", "VAULT_DECRYPT_FAILED: ${err.message ?: "decrypt failed"}")
     }
 
+    android.util.Log.d("VaultDebug", "decoded vaultData fields: ${vaultData.fields.keys}")
+
     try {
       vaultStore.saveLocal(vaultData)
+      android.util.Log.d("VaultDebug", "saveLocal succeeded")
       return GatewaySession.InvokeResult.ok("{\"ok\":true}")
     } catch (err: Throwable) {
+      android.util.Log.e("VaultDebug", "saveLocal failed: ${err.message}", err)
       return GatewaySession.InvokeResult.error("UNAVAILABLE", "VAULT_STORE_FAILED: ${err.message ?: "store failed"}")
     }
   }
