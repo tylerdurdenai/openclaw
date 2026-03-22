@@ -64,6 +64,9 @@ class NodeRuntime(
 
   private val identityStore = DeviceIdentityStore(appContext)
   private val vaultStore: ai.openclaw.app.vault.VaultStore = ai.openclaw.app.vault.VaultStore(appContext)
+  private val vaultSyncManager: ai.openclaw.app.vault.VaultSyncManager = ai.openclaw.app.vault.VaultSyncManager { method, params ->
+    operatorSession.request(method, params)
+  }
   private val vaultDecryptHandler: ai.openclaw.app.vault.VaultDecryptHandler = ai.openclaw.app.vault.VaultDecryptHandler(
     vaultStore = vaultStore,
     approval = { ctx ->
@@ -475,6 +478,12 @@ class NodeRuntime(
       refreshBrandingFromGateway()
       refreshAgentsFromGateway()
     }
+  }
+
+  suspend fun syncVault(): Boolean {
+    val blob = vaultStore.exportBlob()
+    android.util.Log.d("VaultSync", "exported blob: ${blob.size} bytes")
+    return vaultSyncManager.syncToServer(blob)
   }
 
   fun requestCanvasRehydrate(source: String = "manual", force: Boolean = true) {

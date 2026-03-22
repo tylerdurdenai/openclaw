@@ -245,6 +245,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     ensureRuntime().refreshHomeCanvasOverviewIfConnected()
   }
 
+  suspend fun vaultSync(): Boolean {
+    return ensureRuntime().syncVault()
+  }
+
   fun loadChat(sessionKey: String) {
     ensureRuntime().loadChat(sessionKey)
   }
