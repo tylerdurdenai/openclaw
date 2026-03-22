@@ -37,6 +37,8 @@ fun VaultScreen(
   val store = remember(context) { VaultStore(context) }
   var data by remember { mutableStateOf(VaultData(fields = emptyMap(), updatedAt = Instant.now().toString())) }
   var editingField by remember { mutableStateOf<String?>(null) }
+  // Track which field is temporarily revealed (cleared on next interaction)
+  var revealedField by remember { mutableStateOf<String?>(null) }
   val scope = rememberCoroutineScope()
 
   // Observe vault approval requests
@@ -51,6 +53,13 @@ fun VaultScreen(
     }
   }
 
+  // Handle approval result — reveal the field if approved
+  LaunchedEffect(pendingRequest) {
+    if (pendingRequest == null) {
+      // A request was resolved — don't auto-reveal, let user tap again
+    }
+  }
+
   // When a pending request exists, show the approval dialog
   val request = pendingRequest
   if (request != null) {
@@ -60,6 +69,8 @@ fun VaultScreen(
       amount = request.amount,
       purpose = request.purpose,
       onApprove = {
+        // Mark field as revealed temporarily
+        revealedField = request.field
         VaultApprovalState.resolve(VaultApprovalResult.APPROVED)
       },
       onDeny = {
@@ -90,12 +101,38 @@ fun VaultScreen(
       Text(section)
       keys.forEach { key ->
         val field = data.fields[key]
+        val tier = store.tierFor(key)
+        val isRevealed = revealedField == key
+        val displayValue = if (isRevealed) {
+          field?.value ?: ""
+        } else {
+          store.maskValue(key, field?.value.orEmpty())
+        }
+
         VaultFieldRow(
           label = key,
-          maskedValue = store.maskValue(key, field?.value.orEmpty()),
-          tier = store.tierFor(key),
+          maskedValue = displayValue,
+          tier = tier,
           onReveal = {
-            Toast.makeText(context, "Prove you're you.", Toast.LENGTH_SHORT).show()
+            val rawValue = field?.value.orEmpty()
+            if (tier >= 2) {
+              // Tier 2+: require approval before revealing
+              scope.launch {
+                val result = VaultApprovalState.emit(
+                  context = context,
+                  field = key,
+                  domain = "this app",
+                  amount = "",
+                  purpose = "view secret",
+                )
+                if (result != VaultApprovalResult.APPROVED) {
+                  Toast.makeText(context, "Access denied.", Toast.LENGTH_SHORT).show()
+                }
+              }
+            } else {
+              // Tier 1: reveal directly
+              revealedField = key
+            }
           },
           onEdit = { editingField = key },
         )
@@ -105,6 +142,7 @@ fun VaultScreen(
     Button(
       onClick = {
         scope.launch {
+          revealedField = null  // Clear reveals on sync
           val ok = onSync()
           Toast.makeText(
             context,

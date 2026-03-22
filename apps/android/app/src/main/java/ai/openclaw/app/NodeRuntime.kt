@@ -511,9 +511,14 @@ class NodeRuntime(
   }
 
   suspend fun syncVault(): Boolean {
-    val blob = vaultStore.exportBlob()
-    android.util.Log.d("VaultSync", "exported blob: ${blob.size} bytes")
-    return vaultSyncManager.syncToServer(blob)
+    return try {
+      val blob = vaultStore.exportBlob()
+      android.util.Log.d("VaultSync", "exported blob: ${blob.size} bytes")
+      vaultSyncManager.syncToServer(blob)
+    } catch (e: Throwable) {
+      android.util.Log.e("VaultSync", "syncVault failed: ${e.message}", e)
+      false
+    }
   }
 
   private suspend fun runBiometricAuth(reason: String, biometricOnly: Boolean): Boolean {
