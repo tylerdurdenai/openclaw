@@ -82,7 +82,9 @@ class NodeForegroundService : Service() {
 
   private fun ensureChannel() {
     val mgr = getSystemService(NotificationManager::class.java)
-    val channel =
+
+    // Node connection channel
+    val nodeChannel =
       NotificationChannel(
         CHANNEL_ID,
         "Connection",
@@ -91,7 +93,24 @@ class NodeForegroundService : Service() {
         description = "OpenClaw node connection status"
         setShowBadge(false)
       }
-    mgr.createNotificationChannel(channel)
+    mgr.createNotificationChannel(nodeChannel)
+
+    // Vault approval channel — high priority so notifications pop even in DND
+    val vaultChannel =
+      NotificationChannel(
+        VAULT_CHANNEL_ID,
+        "Vault Approvals",
+        NotificationManager.IMPORTANCE_HIGH,
+      ).apply {
+        description = "Incoming vault secret requests"
+        setShowBadge(true)
+      }
+    mgr.createNotificationChannel(vaultChannel)
+  }
+
+  companion object {
+    const val CHANNEL_ID = "openclaw-node-connection"
+    const val VAULT_CHANNEL_ID = "openclaw-vault-approvals"
   }
 
   private fun buildNotification(title: String, text: String): Notification {

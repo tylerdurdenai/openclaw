@@ -12,6 +12,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -21,6 +22,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
+import ai.openclaw.app.vault.VaultApprovalResult
+import ai.openclaw.app.vault.VaultApprovalState
 import ai.openclaw.app.vault.VaultData
 import ai.openclaw.app.vault.VaultField
 import ai.openclaw.app.vault.VaultStore
@@ -36,8 +39,29 @@ fun VaultScreen(
   var editingField by remember { mutableStateOf<String?>(null) }
   val scope = rememberCoroutineScope()
 
+  // Observe vault approval requests
+  val pendingRequest by VaultApprovalState.pendingRequest.collectAsState()
+
   LaunchedEffect(Unit) {
     data = runCatching { store.loadLocal() }.getOrElse { VaultData(fields = emptyMap(), updatedAt = Instant.now().toString()) }
+  }
+
+  // When a pending request exists, show the approval dialog
+  val request = pendingRequest
+  if (request != null) {
+    VaultApprovalDialog(
+      field = request.field,
+      domain = request.domain,
+      amount = request.amount,
+      purpose = request.purpose,
+      onApprove = {
+        VaultApprovalState.resolve(VaultApprovalResult.APPROVED)
+      },
+      onDeny = {
+        VaultApprovalState.resolve(VaultApprovalResult.DENIED)
+      },
+    )
+    return
   }
 
   Column(

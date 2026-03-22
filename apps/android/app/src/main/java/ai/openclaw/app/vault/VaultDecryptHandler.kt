@@ -1,6 +1,9 @@
 package ai.openclaw.app.vault
 
 import ai.openclaw.app.gateway.GatewaySession
+import android.content.Context
+import android.util.Log
+import androidx.fragment.app.FragmentActivity
 import java.security.KeyFactory
 import java.security.PublicKey
 import java.security.spec.X509EncodedKeySpec
@@ -17,9 +20,9 @@ data class VaultApprovalContext(
 )
 
 class VaultDecryptHandler(
+  private val context: Context,
   private val vaultStore: VaultStore,
-  private val approval: suspend (VaultApprovalContext) -> Boolean = { false },
-  private val biometricAuth: suspend (Int) -> Boolean = { tier -> tier < 2 },
+  private val biometricAuth: suspend (reason: String, biometricOnly: Boolean) -> Boolean,
 ) {
   private val json = Json { ignoreUnknownKeys = true }
 
@@ -27,36 +30,36 @@ class VaultDecryptHandler(
     return when (command) {
       "vault.decrypt" -> handleDecrypt(paramsJson)
       "vault.sync" -> handleSync(paramsJson)
-      else -> GatewaySession.InvokeResult.error("INVALID_REQUEST", "INVALID_REQUEST: unknown vault command")
+      else -> GatewaySession.InvokeResult.error("INVALID_REQUEST", "unknown vault command")
     }
   }
 
   private fun handleSync(paramsJson: String?): GatewaySession.InvokeResult {
-    android.util.Log.d("VaultDebug", "handleSync called with: ${paramsJson?.take(200)}")
+    Log.d("VaultDebug", "handleSync called with: ${paramsJson?.take(200)}")
     val request =
       try {
         if (paramsJson.isNullOrBlank()) null else json.decodeFromString<VaultSyncRequest>(paramsJson)
       } catch (_: Throwable) {
         null
-      } ?: return GatewaySession.InvokeResult.error("INVALID_REQUEST", "INVALID_REQUEST: malformed vault sync request")
+      } ?: return GatewaySession.InvokeResult.error("INVALID_REQUEST", "malformed vault sync request")
 
-    android.util.Log.d("VaultDebug", "vaultBlob length: ${request?.vaultBlob?.length}")
+    Log.d("VaultDebug", "vaultBlob length: ${request?.vaultBlob?.length}")
 
     val vaultData = try {
       vaultStore.decodeFromBlob(request.vaultBlob)
     } catch (err: Throwable) {
-      android.util.Log.e("VaultDebug", "decodeFromBlob failed: ${err.message}", err)
+      Log.e("VaultDebug", "decodeFromBlob failed: ${err.message}", err)
       return GatewaySession.InvokeResult.error("UNAVAILABLE", "VAULT_DECRYPT_FAILED: ${err.message ?: "decrypt failed"}")
     }
 
-    android.util.Log.d("VaultDebug", "decoded vaultData fields: ${vaultData.fields.keys}")
+    Log.d("VaultDebug", "decoded vaultData fields: ${vaultData.fields.keys}")
 
     try {
       vaultStore.saveLocal(vaultData)
-      android.util.Log.d("VaultDebug", "saveLocal succeeded")
+      Log.d("VaultDebug", "saveLocal succeeded")
       return GatewaySession.InvokeResult.ok("{\"ok\":true}")
     } catch (err: Throwable) {
-      android.util.Log.e("VaultDebug", "saveLocal failed: ${err.message}", err)
+      Log.e("VaultDebug", "saveLocal failed: ${err.message}", err)
       return GatewaySession.InvokeResult.error("UNAVAILABLE", "VAULT_STORE_FAILED: ${err.message ?: "store failed"}")
     }
   }
@@ -67,29 +70,54 @@ class VaultDecryptHandler(
         if (paramsJson.isNullOrBlank()) null else json.decodeFromString<VaultDecryptRequest>(paramsJson)
       } catch (_: Throwable) {
         null
-      } ?: return GatewaySession.InvokeResult.error("INVALID_REQUEST", "INVALID_REQUEST: malformed vault request")
+      } ?: return GatewaySession.InvokeResult.error("INVALID_REQUEST", "malformed vault request")
 
     val field = request.field.trim()
     if (!isAllowedField(field)) {
-      return GatewaySession.InvokeResult.error("INVALID_REQUEST", "INVALID_REQUEST: unsupported field")
-    }
-
-    if (!approval(VaultApprovalContext(
-      field = field,
-      domain = request.context?.domain,
-      amount = request.context?.amount,
-      purpose = request.context?.purpose,
-    ))) {
-      return GatewaySession.InvokeResult.error("DENIED", "Denied. Good instincts.")
+      return GatewaySession.InvokeResult.error("INVALID_REQUEST", "unsupported field")
     }
 
     val tier = fieldTier(field)
-    if (tier >= 2 && !biometricAuth(tier)) {
-      return GatewaySession.InvokeResult.error("NOT_AUTHORIZED", "Biometric required")
+
+    // Tier 2+: biometric required before showing approval dialog
+    if (tier >= 2) {
+      val authReason = buildString {
+        append("Authenticate to share $field")
+        request.context?.domain?.let { append(" with $it") }
+        request.context?.amount?.let { append(" ($$it)") }
+      }
+      val authenticated = biometricAuth(authReason, biometricOnly = false)
+      if (!authenticated) {
+        Log.d("VaultApproval", "Biometric auth failed for tier $tier field: $field")
+        return GatewaySession.InvokeResult.error("NOT_AUTHORIZED", "Authentication required")
+      }
     }
 
+    // Show approval dialog and wait for user response
+    val domain = request.context?.domain ?: "unknown site"
+    val amount = request.context?.amount?.let { "$$it" } ?: ""
+    val purpose = request.context?.purpose ?: " undisclosed"
+
+    val approvalResult = VaultApprovalState.emit(
+      context = context,
+      field = field,
+      domain = domain,
+      amount = amount,
+      purpose = purpose,
+    )
+
+    when (approvalResult) {
+      VaultApprovalResult.DENIED,
+      VaultApprovalResult.TIMED_OUT -> {
+        return GatewaySession.InvokeResult.error("DENIED", "Request denied")
+      }
+      VaultApprovalResult.APPROVED -> { /* continue */ }
+    }
+
+    // Decrypt the vault blob and extract the field value
     val blob = decodeBlobB64(request.vaultBlob)
-      ?: return GatewaySession.InvokeResult.error("INVALID_REQUEST", "INVALID_REQUEST: invalid vault_blob")
+      ?: return GatewaySession.InvokeResult.error("INVALID_REQUEST", "invalid vault_blob")
+
     val keystore = VaultKeystore()
     val decrypted =
       try {
@@ -98,10 +126,10 @@ class VaultDecryptHandler(
         return GatewaySession.InvokeResult.error("UNAVAILABLE", "VAULT_DECRYPT_FAILED: ${err.message ?: "decrypt failed"}")
       }
 
-    try {
+    return try {
       val vault = json.decodeFromString<VaultData>(decrypted.decodeToString())
       val value = vault.fields[field]?.value
-        ?: return GatewaySession.InvokeResult.error("NOT_FOUND", "NOT_FOUND: field missing")
+        ?: return GatewaySession.InvokeResult.error("NOT_FOUND", "field missing from vault")
 
       val encryptedValue = rsaEncryptOaep(value.toByteArray(), request.browserPubkey)
       val response =
@@ -110,9 +138,9 @@ class VaultDecryptHandler(
           field = field,
           masked = VaultStoreMasking.mask(field, value),
         )
-      return GatewaySession.InvokeResult.ok(json.encodeToString(response))
+      GatewaySession.InvokeResult.ok(json.encodeToString(response))
     } catch (err: Throwable) {
-      return GatewaySession.InvokeResult.error("UNAVAILABLE", "VAULT_PARSE_FAILED: ${err.message ?: "parse failed"}")
+      GatewaySession.InvokeResult.error("UNAVAILABLE", "VAULT_PARSE_FAILED: ${err.message ?: "parse failed"}")
     } finally {
       decrypted.fill(0)
     }

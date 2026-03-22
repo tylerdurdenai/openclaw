@@ -19,6 +19,10 @@ import ai.openclaw.app.gateway.GatewaySession
 import ai.openclaw.app.gateway.probeGatewayTlsFingerprint
 import ai.openclaw.app.node.*
 import ai.openclaw.app.protocol.OpenClawCanvasA2UIAction
+import ai.openclaw.app.vault.VaultApprovalState
+import ai.openclaw.app.vault.VaultBiometricAuth
+import ai.openclaw.app.vault.VaultNotificationHelper
+import ai.openclaw.app.vault.VaultStore
 import ai.openclaw.app.voice.MicCaptureManager
 import ai.openclaw.app.voice.TalkModeManager
 import ai.openclaw.app.voice.VoiceConversationEntry
@@ -63,19 +67,20 @@ class NodeRuntime(
   val discoveryStatusText: StateFlow<String> = discovery.statusText
 
   private val identityStore = DeviceIdentityStore(appContext)
-  private val vaultStore: ai.openclaw.app.vault.VaultStore = ai.openclaw.app.vault.VaultStore(appContext)
+  private val vaultStore: VaultStore = VaultStore(appContext)
   private val vaultSyncManager: ai.openclaw.app.vault.VaultSyncManager = ai.openclaw.app.vault.VaultSyncManager { method, params ->
     operatorSession.request(method, params)
   }
   private val vaultDecryptHandler: ai.openclaw.app.vault.VaultDecryptHandler = ai.openclaw.app.vault.VaultDecryptHandler(
+    context = appContext,
     vaultStore = vaultStore,
-    approval = { ctx ->
-      // TODO: wire up real approval UI (show dialog, wait for user confirm)
-      false
-    },
-    biometricAuth = { tier ->
-      // Tier 0-1: no biometric required; Tier 2+: require biometric
-      tier < 2
+    biometricAuth = { reason, biometricOnly ->
+      // biometricAuth runs on the gateway invoke thread — dispatch to main thread for BiometricPrompt
+      var result = false
+      scope.launch {
+        result = runBiometricAuth(reason, biometricOnly)
+      }.join()
+      result
     },
   )
   private var connectedEndpoint: GatewayEndpoint? = null
@@ -328,6 +333,22 @@ class NodeRuntime(
         nodeSession.sendNodeEvent(event = event, payloadJson = payloadJson)
       }
     }
+
+    // Observe vault approval state — show notification when backgrounded
+    scope.launch {
+      VaultApprovalState.pendingRequest.collect { request ->
+        if (request != null && !_isForeground.value) {
+          VaultNotificationHelper.showApprovalNotification(
+            context = appContext,
+            field = request.field,
+            domain = request.domain,
+            amount = request.amount,
+          )
+        } else if (request == null) {
+          VaultNotificationHelper.dismissNotification(appContext)
+        }
+      }
+    }
   }
 
   private val chat: ChatController =
@@ -484,6 +505,25 @@ class NodeRuntime(
     val blob = vaultStore.exportBlob()
     android.util.Log.d("VaultSync", "exported blob: ${blob.size} bytes")
     return vaultSyncManager.syncToServer(blob)
+  }
+
+  private suspend fun runBiometricAuth(reason: String, biometricOnly: Boolean): Boolean {
+    // Need Main dispatcher for BiometricPrompt
+    return kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+      val activity = appContext as? android.app.Activity
+        ?: return@withContext false
+      val fragmentActivity = activity as? androidx.fragment.app.FragmentActivity
+        ?: return@withContext false
+      val auth = VaultBiometricAuth(fragmentActivity)
+      val canAuth = auth.canAuthenticate(biometricOnly)
+      if (canAuth != androidx.biometric.BiometricManager.BIOMETRIC_SUCCESS) {
+        android.util.Log.w("VaultBiometric", "Cannot authenticate, canAuth=$canAuth, biometricOnly=$biometricOnly")
+        // If can't do biometric and biometricOnly=true, fail. Otherwise fall back.
+        if (biometricOnly) return@withContext false
+      }
+      val result = auth.authenticate(reason = reason, biometricOnly = biometricOnly)
+      result.success
+    }
   }
 
   fun requestCanvasRehydrate(source: String = "manual", force: Boolean = true) {
