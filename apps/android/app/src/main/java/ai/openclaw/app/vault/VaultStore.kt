@@ -4,6 +4,7 @@ import android.content.Context
 import java.io.File
 import java.nio.ByteBuffer
 import java.time.Instant
+import java.util.Base64
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
