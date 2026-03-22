@@ -15,7 +15,7 @@ import ai.openclaw.app.R
 
 object VaultNotificationHelper {
   private const val TAG = "VaultNotification"
-  private const val VAULT_NOTIFICATION_ID = 0xVAULT // 30583
+  private const val VAULT_NOTIFICATION_ID = 30583
 
   fun showApprovalNotification(
     context: Context,

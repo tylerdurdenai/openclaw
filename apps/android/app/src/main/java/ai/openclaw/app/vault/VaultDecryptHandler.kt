@@ -86,7 +86,7 @@ class VaultDecryptHandler(
         request.context?.domain?.let { append(" with $it") }
         request.context?.amount?.let { append(" ($$it)") }
       }
-      val authenticated = biometricAuth(authReason, biometricOnly = false)
+      val authenticated = biometricAuth.invoke(authReason, false)
       if (!authenticated) {
         Log.d("VaultApproval", "Biometric auth failed for tier $tier field: $field")
         return GatewaySession.InvokeResult.error("NOT_AUTHORIZED", "Authentication required")

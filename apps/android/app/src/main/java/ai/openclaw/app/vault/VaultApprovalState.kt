@@ -1,8 +1,6 @@
 package ai.openclaw.app.vault
 
 import android.content.Context
-import android.content.Intent
-import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
@@ -14,6 +12,8 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlin.coroutines.resume
 
 data class VaultApprovalRequest(
   val field: String,
@@ -60,13 +60,16 @@ object VaultApprovalState {
     Log.d("VaultApproval", "Pending approval: $field for $domain $amount")
 
     // Timeout after 60 seconds
-    handler.postDelayed({
+    val timeoutRunnable = Runnable {
       if (_pendingRequest.value?.deferred === deferred) {
         _pendingRequest.value = null
         deferred.complete(VaultApprovalResult.TIMED_OUT)
         Log.d("VaultApproval", "Approval timed out")
       }
-    }, 60_000)
+    }
+    handler.postDelayed(timeoutRunnable, 60_000)
+
+    deferred.invokeOnCompletion { handler.removeCallbacks(timeoutRunnable) }
 
     return deferred.await()
   }
@@ -87,92 +90,83 @@ class VaultBiometricAuth(private val activity: FragmentActivity) {
     private const val TAG = "VaultBiometric"
   }
 
-  interface AuthResult {
-    val success: Boolean
-    val errorCode: Int?
-    val errorMessage: String?
-  }
-
-  private class BiometricAuthResult(
-    override val success: Boolean,
-    override val errorCode: Int?,
-    override val errorMessage: String?,
-  ) : AuthResult
+  data class AuthResult(
+    val success: Boolean,
+    val errorCode: Int,
+    val errorMessage: String,
+  )
 
   suspend fun authenticate(
     reason: String,
     biometricOnly: Boolean = false,
-  ): AuthResult = suspend { callback ->
+  ): AuthResult = suspendCancellableCoroutine { cont ->
     val executor = ContextCompat.getMainExecutor(activity)
 
     val callback = object : BiometricPrompt.AuthenticationCallback() {
       override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
         Log.d(TAG, "Biometric auth succeeded")
-        callback(BiometricAuthResult(success = true, errorCode = null, errorMessage = null))
+        if (cont.isActive) cont.resume(AuthResult(success = true, errorCode = 0, errorMessage = ""))
       }
 
       override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
         Log.w(TAG, "Biometric auth error: $errorCode — $errString")
-        // On user cancel, treat as denial. On hardware unavailable, try device credential.
-        if (errorCode == BiometricPrompt.ERROR_NEGATIVE_BUTTON ||
-          errorCode == BiometricPrompt.ERROR_USER_CANCELED ||
-          errorCode == BiometricPrompt.ERROR_NO_BIOMETRICS ||
-          errorCode == BiometricPrompt.ERROR_HW_NOT_PRESENT
-        ) {
-          if (!biometricOnly) {
-            // Fall through to device credential
-            Log.d(TAG, "Falling back to device credential")
-            callback(BiometricAuthResult(success = false, errorCode = errorCode, errorMessage = errString.toString()))
-            return
-          }
-          callback(BiometricAuthResult(success = false, errorCode = errorCode, errorMessage = errString.toString()))
-        } else {
-          callback(BiometricAuthResult(success = false, errorCode = errorCode, errorMessage = errString.toString()))
+        if (cont.isActive) {
+          cont.resume(
+            AuthResult(
+              success = false,
+              errorCode = errorCode,
+              errorMessage = errString.toString(),
+            ),
+          )
         }
       }
 
       override fun onAuthenticationFailed() {
         Log.w(TAG, "Biometric auth failed")
-        // Don't complete — let user retry
+        // Don't resume — let user retry
       }
     }
 
-    val promptInfo = BiometricPrompt.PromptInfo.Builder()
-      .setTitle("Verify it's you")
-      .setSubtitle(reason)
-      .apply {
-        if (biometricOnly) {
-          setAllowedAuthenticators(BiometricManager.Authenticators.BIOMETRIC_STRONG)
-        } else {
-          setAllowedAuthenticators(
-            BiometricManager.Authenticators.BIOMETRIC_STRONG or
-              BiometricManager.Authenticators.DEVICE_CREDENTIAL,
-          )
-        }
-      }
-      .build()
-
     val biometricPrompt = BiometricPrompt(activity, executor, callback)
+
+    val promptInfo =
+      BiometricPrompt.PromptInfo.Builder()
+        .setTitle("Verify it's you")
+        .setSubtitle(reason)
+        .apply {
+          if (biometricOnly) {
+            setAllowedAuthenticators(BiometricManager.Authenticators.BIOMETRIC_STRONG)
+          } else {
+            setAllowedAuthenticators(
+              BiometricManager.Authenticators.BIOMETRIC_STRONG or
+                BiometricManager.Authenticators.DEVICE_CREDENTIAL,
+            )
+          }
+        }
+        .build()
+
     activity.runOnUiThread {
+      if (!cont.isActive) return@runOnUiThread
       try {
         biometricPrompt.authenticate(promptInfo)
       } catch (e: Throwable) {
         Log.e(TAG, "BiometricPrompt auth failed to start: ${e.message}", e)
-        callback(BiometricAuthResult(success = false, errorCode = -1, errorMessage = e.message))
+        if (cont.isActive) {
+          cont.resume(AuthResult(success = false, errorCode = -1, errorMessage = e.message ?: "unknown error"))
+        }
       }
     }
-  }.await()
+  }
 
   fun canAuthenticate(biometricOnly: Boolean = false): Int {
-    val authenticators = if (biometricOnly) {
-      BiometricManager.Authenticators.BIOMETRIC_STRONG
-    } else {
-      BiometricManager.Authenticators.BIOMETRIC_STRONG or BiometricManager.Authenticators.DEVICE_CREDENTIAL
-    }
+    val authenticators =
+      if (biometricOnly) {
+        BiometricManager.Authenticators.BIOMETRIC_STRONG
+      } else {
+        BiometricManager.Authenticators.BIOMETRIC_STRONG or
+          BiometricManager.Authenticators.DEVICE_CREDENTIAL
+      }
     val biometricManager = BiometricManager.from(activity)
     return biometricManager.canAuthenticate(authenticators)
   }
 }
-
-private fun <T> suspend(block: (T) -> Unit): kotlin.coroutines.SuspendCoroutine<T> =
-  kotlin.coroutines.intrinsics.suspendCoroutine { cont -> block({ cont.resumeWith(it) }) }
