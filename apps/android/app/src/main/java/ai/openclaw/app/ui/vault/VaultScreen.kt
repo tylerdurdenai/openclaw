@@ -53,13 +53,6 @@ fun VaultScreen(
     }
   }
 
-  // Handle approval result — reveal the field if approved
-  LaunchedEffect(pendingRequest) {
-    if (pendingRequest == null) {
-      // A request was resolved — don't auto-reveal, let user tap again
-    }
-  }
-
   // When a pending request exists, show the approval dialog
   val request = pendingRequest
   if (request != null) {
@@ -114,19 +107,22 @@ fun VaultScreen(
           maskedValue = displayValue,
           tier = tier,
           onReveal = {
-            val rawValue = field?.value.orEmpty()
             if (tier >= 2) {
-              // Tier 2+: require approval before revealing
+              // Tier 2+: require approval dialog + biometric
               scope.launch {
-                val result = VaultApprovalState.emit(
-                  context = context,
-                  field = key,
-                  domain = "this app",
-                  amount = "",
-                  purpose = "view secret",
-                )
-                if (result != VaultApprovalResult.APPROVED) {
-                  Toast.makeText(context, "Access denied.", Toast.LENGTH_SHORT).show()
+                try {
+                  val result = VaultApprovalState.emit(
+                    context = context,
+                    field = key,
+                    domain = "this app",
+                    amount = "",
+                    purpose = "view secret",
+                  )
+                  if (result == VaultApprovalResult.APPROVED) {
+                    revealedField = key
+                  }
+                } catch (e: Throwable) {
+                  Toast.makeText(context, "Auth failed.", Toast.LENGTH_SHORT).show()
                 }
               }
             } else {
