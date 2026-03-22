@@ -11,7 +11,6 @@ import androidx.lifecycle.repeatOnLifecycle
 import androidx.compose.material3.Surface
 import androidx.compose.ui.Modifier
 import androidx.core.view.WindowCompat
-import androidx.core.view.WindowCompat
 import ai.openclaw.app.ui.RootScreen
 import ai.openclaw.app.ui.OpenClawTheme
 import kotlinx.coroutines.launch
