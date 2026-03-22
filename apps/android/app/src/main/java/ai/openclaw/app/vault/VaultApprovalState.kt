@@ -146,7 +146,10 @@ class VaultBiometricAuth(private val activity: FragmentActivity) {
         .build()
 
     activity.runOnUiThread {
-      if (!cont.isActive) return@runOnUiThread
+      if (!cont.isActive || activity.isFinishing || activity.isDestroyed) {
+        if (cont.isActive) cont.resume(AuthResult(success = false, errorCode = -2, errorMessage = "activity not running"))
+        return@runOnUiThread
+      }
       try {
         biometricPrompt.authenticate(promptInfo)
       } catch (e: Throwable) {

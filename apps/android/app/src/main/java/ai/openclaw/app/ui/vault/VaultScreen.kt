@@ -43,7 +43,12 @@ fun VaultScreen(
   val pendingRequest by VaultApprovalState.pendingRequest.collectAsState()
 
   LaunchedEffect(Unit) {
-    data = runCatching { store.loadLocal() }.getOrElse { VaultData(fields = emptyMap(), updatedAt = Instant.now().toString()) }
+    try {
+      data = store.loadLocal()
+    } catch (e: Throwable) {
+      android.util.Log.e("VaultScreen", "loadLocal failed: ${e.message}", e)
+      data = VaultData(fields = emptyMap(), updatedAt = Instant.now().toString())
+    }
   }
 
   // When a pending request exists, show the approval dialog

@@ -77,9 +77,14 @@ class NodeRuntime(
     biometricAuth = { reason, biometricOnly ->
       // biometricAuth runs on the gateway invoke thread — dispatch to main thread for BiometricPrompt
       var result = false
-      scope.launch {
-        result = runBiometricAuth(reason, biometricOnly)
-      }.join()
+      try {
+        scope.launch {
+          result = runBiometricAuth(reason, biometricOnly)
+        }.join()
+      } catch (e: Throwable) {
+        android.util.Log.e("VaultBiometric", "Biometric auth failed: ${e.message}", e)
+        result = false
+      }
       result
     },
   )
@@ -337,15 +342,19 @@ class NodeRuntime(
     // Observe vault approval state — show notification when backgrounded
     scope.launch {
       VaultApprovalState.pendingRequest.collect { request ->
-        if (request != null && !_isForeground.value) {
-          VaultNotificationHelper.showApprovalNotification(
-            context = appContext,
-            field = request.field,
-            domain = request.domain,
-            amount = request.amount,
-          )
-        } else if (request == null) {
-          VaultNotificationHelper.dismissNotification(appContext)
+        try {
+          if (request != null && !_isForeground.value) {
+            VaultNotificationHelper.showApprovalNotification(
+              context = appContext,
+              field = request.field,
+              domain = request.domain,
+              amount = request.amount,
+            )
+          } else if (request == null) {
+            VaultNotificationHelper.dismissNotification(appContext)
+          }
+        } catch (e: Throwable) {
+          android.util.Log.e("VaultApproval", "Notification action failed: ${e.message}", e)
         }
       }
     }
